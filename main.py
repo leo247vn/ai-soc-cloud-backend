@@ -9,7 +9,7 @@ from fastapi import FastAPI, Header, HTTPException, Query, Request
 from google.cloud import firestore
 
 
-APP_VERSION = "phase3-approval"
+APP_VERSION = "phase4-agent-decisions"
 INGEST_TOKEN = os.getenv("INGEST_TOKEN", "").strip()
 FIRESTORE_COLLECTION = os.getenv("FIRESTORE_COLLECTION", "incidents")
 DECISIONS_COLLECTION = os.getenv("DECISIONS_COLLECTION", "decisions")
@@ -587,3 +587,71 @@ async def reject_decision(
         },
     )
     return {"ok": True, "decision_id": decision_id, "status": "rejected"}
+
+
+@app.get("/agent/decisions")
+def list_agent_decisions(
+    limit: int = Query(default=10, ge=1, le=50),
+    authorization: str | None = Header(default=None),
+) -> dict[str, Any]:
+    require_token(authorization)
+    query = (
+        db.collection(DECISIONS_COLLECTION)
+        .order_by("approved_at", direction=firestore.Query.DESCENDING)
+        .limit(limit * 5)
+    )
+    decisions = []
+    for document in query.stream():
+        decision = decision_from_doc(document)
+        if decision.get("status") != "approved":
+            continue
+        if decision.get("execution_status") not in {"not_started", "retry"}:
+            continue
+        decisions.append(decision)
+        if len(decisions) >= limit:
+            break
+    return {"items": decisions, "count": len(decisions)}
+
+
+@app.post("/agent/decisions/{decision_id}/result")
+async def report_agent_decision_result(
+    decision_id: str,
+    request: Request,
+    authorization: str | None = Header(default=None),
+) -> dict[str, Any]:
+    require_token(authorization)
+    document_ref = db.collection(DECISIONS_COLLECTION).document(decision_id)
+    document = document_ref.get()
+    if not document.exists:
+        raise HTTPException(status_code=404, detail="decision not found")
+
+    body = await request.json()
+    execution_status = str(body.get("execution_status") or "").strip().lower()
+    if execution_status not in {"executed", "failed", "skipped", "retry"}:
+        raise HTTPException(
+            status_code=400,
+            detail="execution_status must be executed, failed, skipped, or retry",
+        )
+
+    actor = str(body.get("executed_by") or body.get("agent_id") or "bridge-agent").strip()
+    now = utc_now()
+    update = {
+        "execution_status": execution_status,
+        "execution_result": body.get("execution_result"),
+        "executed_by": actor,
+        "executed_at": now if execution_status in {"executed", "skipped"} else None,
+        "last_execution_attempt_at": now,
+        "updated_at": now,
+    }
+    document_ref.set(update, merge=True)
+    add_audit_log(
+        event_type="decision_execution_reported",
+        actor=actor,
+        target_type="decision",
+        target_id=decision_id,
+        detail={
+            "execution_status": execution_status,
+            "execution_result": body.get("execution_result"),
+        },
+    )
+    return {"ok": True, "decision_id": decision_id, "execution_status": execution_status}

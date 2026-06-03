@@ -8,6 +8,7 @@ Current scope:
 Phase 1: ingest Wazuh incidents into Firestore
 Phase 2: read incidents and answer chatbot questions
 Phase 3: create, approve, and reject response decisions
+Phase 4: let Bridge Agent poll approved decisions and report execution status
 ```
 
 ## Endpoints
@@ -26,6 +27,8 @@ GET  /decisions/{decision_id}
 POST /decisions
 POST /decisions/{decision_id}/approve
 POST /decisions/{decision_id}/reject
+GET  /agent/decisions
+POST /agent/decisions/{decision_id}/result
 ```
 
 `POST /` and `POST /ingest-alert` both accept Bridge Agent payloads:
@@ -167,6 +170,22 @@ List decisions:
 
 ```bash
 curl "$SERVICE_URL/decisions?limit=10"
+```
+
+Agent fetch approved decisions:
+
+```bash
+curl "$SERVICE_URL/agent/decisions?limit=5" \
+  -H "Authorization: Bearer $TOKEN"
+```
+
+Agent reports execution result:
+
+```bash
+curl -X POST "$SERVICE_URL/agent/decisions/$DECISION_ID/result" \
+  -H "Authorization: Bearer $TOKEN" \
+  -H "Content-Type: application/json" \
+  -d '{"execution_status":"skipped","executed_by":"bridge-agent-01","execution_result":{"dry_run":true,"message":"Phase 4A connectivity test"}}'
 ```
 
 Expected response:
