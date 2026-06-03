@@ -91,7 +91,7 @@ gcloud run deploy ai-soc-backend \
   --source . \
   --region asia-southeast1 \
   --allow-unauthenticated \
-  --set-env-vars INGEST_TOKEN=$TOKEN,FIRESTORE_COLLECTION=incidents,GEMINI_ENABLED=true,VERTEX_AI_PROJECT=neon-webbing-496403-t3,VERTEX_AI_LOCATION=asia-southeast1,GEMINI_MODEL=gemini-2.0-flash-lite-001
+  --set-env-vars INGEST_TOKEN=$TOKEN,FIRESTORE_COLLECTION=incidents,GEMINI_ENABLED=true,VERTEX_AI_PROJECT=neon-webbing-496403-t3,VERTEX_AI_LOCATION=global,GEMINI_MODEL=gemini-2.5-flash-lite
 ```
 
 Neu muon test khong dung Gemini:
@@ -148,6 +148,13 @@ gemini_error=null  -> khong co loi Gemini
 incidents_used > 0 -> da doc duoc Firestore incidents
 ```
 
+Neu gap loi 404 `Publisher Model ... was not found`, kiem tra lai `GEMINI_MODEL` va `VERTEX_AI_LOCATION`. Nen dung:
+
+```text
+VERTEX_AI_LOCATION=global
+GEMINI_MODEL=gemini-2.5-flash-lite
+```
+
 ## 6. Ghi chu bao mat va scope
 
 - Phase 2 chi phan tich va de xuat.
@@ -155,4 +162,3 @@ incidents_used > 0 -> da doc duoc Firestore incidents
 - Block/Ignore/Approve se lam o Phase 3.
 - Bridge Agent SSH vao pfSense se lam o Phase 4.
 - Khong dua `INGEST_TOKEN` vao slide/public repo.
-

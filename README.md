@@ -63,8 +63,8 @@ Required only when enabling Gemini:
 ```text
 GEMINI_ENABLED=true
 VERTEX_AI_PROJECT=neon-webbing-496403-t3
-VERTEX_AI_LOCATION=asia-southeast1
-GEMINI_MODEL=gemini-2.0-flash-lite-001
+VERTEX_AI_LOCATION=global
+GEMINI_MODEL=gemini-2.5-flash-lite
 ```
 
 ## Deploy
@@ -84,7 +84,7 @@ gcloud run deploy ai-soc-backend \
   --source . \
   --region asia-southeast1 \
   --allow-unauthenticated \
-  --set-env-vars INGEST_TOKEN=$TOKEN,FIRESTORE_COLLECTION=incidents,GEMINI_ENABLED=true,VERTEX_AI_PROJECT=neon-webbing-496403-t3,VERTEX_AI_LOCATION=asia-southeast1,GEMINI_MODEL=gemini-2.0-flash-lite-001
+  --set-env-vars INGEST_TOKEN=$TOKEN,FIRESTORE_COLLECTION=incidents,GEMINI_ENABLED=true,VERTEX_AI_PROJECT=neon-webbing-496403-t3,VERTEX_AI_LOCATION=global,GEMINI_MODEL=gemini-2.5-flash-lite
 ```
 
 Get service URL:

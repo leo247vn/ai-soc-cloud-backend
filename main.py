@@ -13,8 +13,8 @@ INGEST_TOKEN = os.getenv("INGEST_TOKEN", "").strip()
 FIRESTORE_COLLECTION = os.getenv("FIRESTORE_COLLECTION", "incidents")
 GEMINI_ENABLED = os.getenv("GEMINI_ENABLED", "false").lower() in {"1", "true", "yes", "y"}
 VERTEX_AI_PROJECT = os.getenv("VERTEX_AI_PROJECT") or os.getenv("GOOGLE_CLOUD_PROJECT", "")
-VERTEX_AI_LOCATION = os.getenv("VERTEX_AI_LOCATION", "asia-southeast1")
-GEMINI_MODEL = os.getenv("GEMINI_MODEL", "gemini-2.0-flash-lite-001")
+VERTEX_AI_LOCATION = os.getenv("VERTEX_AI_LOCATION", "global")
+GEMINI_MODEL = os.getenv("GEMINI_MODEL", "gemini-2.5-flash-lite")
 
 app = FastAPI(title="AI SOC Cloud Backend", version=APP_VERSION)
 db = firestore.Client()
