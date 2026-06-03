@@ -20,6 +20,20 @@ GEMINI_ENABLED = os.getenv("GEMINI_ENABLED", "false").lower() in {"1", "true", "
 VERTEX_AI_PROJECT = os.getenv("VERTEX_AI_PROJECT") or os.getenv("GOOGLE_CLOUD_PROJECT", "")
 VERTEX_AI_LOCATION = os.getenv("VERTEX_AI_LOCATION", "global")
 GEMINI_MODEL = os.getenv("GEMINI_MODEL", "gemini-2.5-flash-lite")
+LAB_CONTEXT = {
+    "wazuh_ip": os.getenv("LAB_WAZUH_IP", "172.16.10.28"),
+    "wazuh_bridge_path": os.getenv("LAB_BRIDGE_PATH", "/home/leonuc/wazuh-bridge-agent"),
+    "pfsense_lan_ip": os.getenv("LAB_PFSENSE_LAN_IP", "172.16.11.220"),
+    "pfsense_ssh_port": os.getenv("LAB_PFSENSE_SSH_PORT", "2222"),
+    "pfsense_block_table": os.getenv("LAB_PFSENSE_BLOCK_TABLE", "ai_soc_block"),
+    "cloud_run_url": os.getenv(
+        "LAB_CLOUD_RUN_URL",
+        "https://ai-soc-backend-4dsqwutw7q-as.a.run.app/",
+    ),
+    "firestore_incidents": os.getenv("FIRESTORE_COLLECTION", "incidents"),
+    "firestore_decisions": os.getenv("DECISIONS_COLLECTION", "decisions"),
+    "firestore_audit_logs": os.getenv("AUDIT_COLLECTION", "audit_logs"),
+}
 PROTECTED_IP_RANGES = [
     ip_network(item.strip())
     for item in os.getenv(
@@ -253,6 +267,10 @@ def compact_for_prompt(incidents: list[dict[str, Any]]) -> list[dict[str, Any]]:
 
 
 def heuristic_chat_answer(message: str, incidents: list[dict[str, Any]]) -> str:
+    direct_answer = direct_lab_answer(message)
+    if direct_answer:
+        return direct_answer
+
     summary = summarize_incidents(incidents)
     top_ips = summary["top_source_ips"][:5]
     high_value = summary["high_value_incidents"][:5]
@@ -289,12 +307,47 @@ def heuristic_chat_answer(message: str, incidents: list[dict[str, Any]]) -> str:
     return "\n".join(lines)
 
 
+def direct_lab_answer(message: str) -> str | None:
+    lowered = message.lower()
+    asks_ip = "ip" in lowered or "địa chỉ" in lowered or "dia chi" in lowered
+
+    if "pfsense" in lowered and asks_ip:
+        return (
+            f"IP LAN của pfSense trong lab là {LAB_CONTEXT['pfsense_lan_ip']}.\n"
+            f"SSH pfSense dùng port {LAB_CONTEXT['pfsense_ssh_port']}.\n"
+            f"Table block đang dùng là {LAB_CONTEXT['pfsense_block_table']}."
+        )
+
+    if "wazuh" in lowered and asks_ip:
+        return (
+            f"IP máy Wazuh/Bridge Agent trong lab là {LAB_CONTEXT['wazuh_ip']}.\n"
+            f"Bridge Agent path: {LAB_CONTEXT['wazuh_bridge_path']}."
+        )
+
+    if "cloud run" in lowered or "backend" in lowered:
+        if asks_ip or "url" in lowered or "endpoint" in lowered:
+            return f"Cloud Run backend URL hiện tại là {LAB_CONTEXT['cloud_run_url']}."
+
+    if "collection" in lowered or "firestore" in lowered:
+        return (
+            "Firestore đang dùng các collection chính:\n"
+            f"- incidents: {LAB_CONTEXT['firestore_incidents']}\n"
+            f"- decisions: {LAB_CONTEXT['firestore_decisions']}\n"
+            f"- audit_logs: {LAB_CONTEXT['firestore_audit_logs']}"
+        )
+
+    return None
+
+
 def build_gemini_prompt(message: str, incidents: list[dict[str, Any]]) -> str:
     compacted = compact_for_prompt(incidents)
     return (
         "Ban la AI SOC assistant cho lab Wazuh + pfSense. "
-        "Chi dua ra phan tich va khuyen nghi, khong bao da thuc thi firewall action. "
-        "Tra loi bang tieng Viet ngan gon, co risk, evidence, suggested action, confidence.\n\n"
+        "Tra loi dung y cau hoi cua admin. "
+        "Neu admin hoi thong tin ha tang/cau hinh, tra loi truc tiep bang Lab context. "
+        "Neu admin hoi dieu tra/canh bao/log, hay phan tich incident va dua risk, evidence, suggested action, confidence. "
+        "Khong noi da thuc thi firewall action tru khi du lieu noi ro decision da executed.\n\n"
+        f"Lab context:\n{LAB_CONTEXT}\n\n"
         f"Cau hoi cua admin:\n{message}\n\n"
         "Du lieu incident moi nhat tu Firestore dang o dang JSON compact:\n"
         f"{compacted}"
@@ -415,6 +468,17 @@ async def chat(request: Request) -> dict[str, Any]:
 
     source = "heuristic"
     error = None
+    direct_answer = direct_lab_answer(message)
+    if direct_answer:
+        return {
+            "answer": direct_answer,
+            "source": "lab_context",
+            "gemini_enabled": GEMINI_ENABLED,
+            "gemini_error": None,
+            "summary": summary,
+            "incidents_used": len(incidents),
+        }
+
     if use_gemini:
         try:
             answer = ask_gemini(message, incidents)
