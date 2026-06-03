@@ -6,6 +6,7 @@ from typing import Any
 from uuid import uuid4
 
 from fastapi import FastAPI, Header, HTTPException, Query, Request
+from fastapi.middleware.cors import CORSMiddleware
 from google.cloud import firestore
 
 
@@ -30,6 +31,12 @@ PROTECTED_IP_RANGES = [
 ALLOWED_DECISION_ACTIONS = {"block_ip", "unblock_ip", "ignore", "whitelist"}
 
 app = FastAPI(title="AI SOC Cloud Backend", version=APP_VERSION)
+app.add_middleware(
+    CORSMiddleware,
+    allow_origins=["*"],
+    allow_methods=["GET", "POST", "OPTIONS"],
+    allow_headers=["*"],
+)
 db = firestore.Client()
 
 
